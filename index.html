@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>愛犬の食事管理ページ v3</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background:#ffeef2; font-family:sans-serif; padding:15px; margin:0; }
+    h1 { color:#d6336c; font-size:1.6em; }
+    table { width:100%; border-collapse:collapse; margin-bottom:1em; }
+    th,td { border:1px solid #ccc; padding:6px; text-align:center; }
+    input[type=number] { width:60px; }
+    button { padding:8px 12px; margin-bottom:1em; }
+    #totals, #history { font-size:0.9em; margin-top:1em; }
+    @media(max-width:600px){
+      table,thead,tbody,th,td,tr{display:block;}
+      th,td{padding:8px;text-align:left;}
+    }
+  </style>
+</head>
+<body>
+  <h1>愛犬の食事管理 v3</h1>
+  <p><strong>目標PFCバランス：</strong>たんぱく質60%・炭水化物30%・脂質10%</p>
+  <table>
+    <thead>
+      <tr><th>カテゴリ</th><th>食材</th><th>量(g)</th></tr>
+    </thead>
+    <tbody id="ingredients">
+      <!-- ここにJSで行を生成 -->
+    </tbody>
+  </table>
+  <button id="calcBtn">計算する</button>
+  <div id="totals"></div>
+  <canvas id="pfcChart" width="300" height="300"></canvas>
+  <h2>履歴（最新10件）</h2>
+  <div id="history"></div>
+
+  <script>
+    // 100gあたりの栄養データ
+    const data = [
+      ["肉","鶏ササミ",105,23,1,0],
+      ["肉","鶏ムネ（皮なし）",108,22,1.5,0],
+      ["肉","鶏ハート",134,17,6,0],
+      ["肉","鶏砂ずり",94,18,2,0],
+      ["肉","豚ヘレ",115,22,2,0],
+      ["肉","ラム",198,18.5,14.6,0],
+      ["野菜","大根",18,0.4,0.1,4.1],
+      ["野菜","人参",36,0.7,0.2,8.7],
+      ["野菜","胡瓜",14,1,0.1,3.1],
+      ["炭水化物","さつまいも",131,1.2,0.2,31.9],
+      ["炭水化物","白米",168,2.5,0.3,37.1],
+      ["炭水化物","オートミール",71,2.5,1.4,12]
+    ];
+
+    const tbody = document.getElementById("ingredients");
+    data.forEach((row,i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${row[0]}</td>
+        <td>${row[1]}</td>
+        <td><input type="number" data-index="${i}" min="0" value="0"></td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    const ctx = document.getElementById("pfcChart").getContext("2d");
+    const chart = new Chart(ctx, {
+      type: 'pie',
+      data: { labels:['P','F','C'], datasets:[{ data:[0,0,0], backgroundColor:['#4CAF50','#FF9800','#03A9F4'] }] },
+      options: { plugins:{ tooltip:{callbacks:{label(item){return item.label + ' ' + item.parsed.toFixed(1) + '%';}}}} }
+    });
+
+    document.getElementById("calcBtn").addEventListener("click", () => {
+      let tot={k:0,p:0,f:0,c:0};
+      document.querySelectorAll("input[type=number]").forEach(input=>{
+        const g=+input.value||0;
+        if(g>0){
+          const d=data[input.dataset.index];
+          tot.k+=d[2]*g/100; tot.p+=d[3]*g/100; tot.f+=d[4]*g/100; tot.c+=d[5]*g/100;
+        }
+      });
+      document.getElementById("totals").innerText =
+        `カロリー:${tot.k.toFixed(1)} kcal  タンパク質:${tot.p.toFixed(1)}g  脂質:${tot.f.toFixed(1)}g  炭水化物:${tot.c.toFixed(1)}g`;
+      const sum=tot.p+tot.f+tot.c;
+      chart.data.datasets[0].data = sum? [tot.p/sum*100,tot.f/sum*100,tot.c/sum*100] : [0,0,0];
+      chart.update();
+
+      // 履歴保存
+      const name = prompt("犬の名前を入力（もっち or クロト）");
+      const entry = `${new Date().toLocaleString()} [${name}] K:${tot.k.toFixed(1)} P:${tot.p.toFixed(1)} F:${tot.f.toFixed(1)} C:${tot.c.toFixed(1)}`;
+      const hist = JSON.parse(localStorage.getItem("hist")||"[]");
+      hist.unshift(entry);
+      localStorage.setItem("hist", JSON.stringify(hist.slice(0,10)));
+      document.getElementById("history").innerHTML = hist.map(e=>`<div>${e}</div>`).join("");
+    });
+
+    // 起動時に履歴表示
+    const hist0 = JSON.parse(localStorage.getItem("hist")||"[]");
+    document.getElementById("history").innerHTML = hist0.map(e=>`<div>${e}</div>`).join("");
+  </script>
+</body>
+</html>
